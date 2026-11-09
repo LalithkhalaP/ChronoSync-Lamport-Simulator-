@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChronoSync – Lamport Logical Clock Simulator</title>
+<style>
+:root{
+  --bg:#14161a; --bg2:#1b1e24; --card:#20242b; --line:#2e333c; --text:#e8eaee; --mute:#9aa1ae;
+  --em:#34d399; --em-d:#10b981; --vio:#a78bfa; --vio-d:#7c3aed; --sky:#38bdf8; --warn:#fbbf24; --err:#f87171;
+  --r:16px; --s1:8px; --s2:16px; --s3:24px; --s4:40px;
+  --sans:"Segoe UI",system-ui,-apple-system,Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px}
+body{margin:0;font-family:var(--sans);color:var(--text);line-height:1.6;
+  background:radial-gradient(900px 500px at 85% -10%,rgba(124,58,237,.18),transparent 60%),radial-gradient(800px 500px at -5% 10%,rgba(16,185,129,.14),transparent 60%),var(--bg);}
+a{color:inherit}
+svg{width:18px;height:18px;flex:none}
+:focus-visible{outline:2px solid var(--em);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto;padding:0 var(--s2)}
+section{padding:var(--s3) 0}
+h1,h2,h3{line-height:1.2;margin:0}
+h2{font-size:1.5rem;letter-spacing:-.01em}
+.sub{color:var(--mute);margin:6px 0 var(--s2);max-width:70ch}
+
+/* Navigation */
+nav{position:sticky;top:0;z-index:50;background:rgba(20,22,26,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.nav{display:flex;align-items:center;gap:var(--s2);height:68px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:12px;text-decoration:none;margin-right:auto}
+.logo{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:linear-gradient(135deg,var(--em),var(--vio-d));box-shadow:0 6px 18px rgba(124,58,237,.35)}
+.logo svg{color:#0c0e11;width:22px;height:22px}
+.brand b{display:block;font-size:1.1rem;letter-spacing:.01em}
+.brand small{display:block;color:var(--mute);font-size:.75rem;margin-top:-3px}
+.links{display:flex;gap:4px}
+.links a{padding:8px 14px;border-radius:10px;text-decoration:none;color:var(--mute);font-size:.92rem;transition:.2s}
+.links a:hover{color:var(--text);background:var(--card)}
+.status{display:flex;align-items:center;gap:8px;font-size:.85rem;padding:6px 12px;border-radius:99px;background:var(--card);border:1px solid var(--line)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--em);box-shadow:0 0 0 4px rgba(52,211,153,.18)}
+.status.run .dot{background:var(--vio);box-shadow:0 0 0 4px rgba(167,139,250,.25)}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font:inherit;font-size:.9rem;font-weight:600;color:var(--text);
+  background:var(--card);border:1px solid var(--line);padding:9px 16px;border-radius:11px;cursor:pointer;transition:.18s}
+.btn:hover{border-color:var(--mute);transform:translateY(-1px)}
+.btn:active{transform:none}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.btn.em{background:linear-gradient(135deg,var(--em),var(--em-d));color:#06231a;border-color:transparent}
+.btn.vio{background:linear-gradient(135deg,var(--vio),var(--vio-d));color:#fff;border-color:transparent}
+.btn.sm{padding:6px 12px;font-size:.82rem}
+.btn.danger:hover{border-color:var(--err);color:var(--err)}
+
+/* Cards */
+.card{background:linear-gradient(180deg,var(--card),var(--bg2));border:1px solid var(--line);border-radius:var(--r);padding:var(--s3);box-shadow:0 10px 30px rgba(0,0,0,.28)}
+
+/* Hero */
+.hero{padding-top:var(--s4)}
+.hero h1{font-size:clamp(2rem,5vw,3.3rem);letter-spacing:-.025em;max-width:16ch}
+.hero p{color:var(--mute);max-width:62ch;font-size:1.05rem;margin:var(--s2) 0 var(--s3)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s2)}
+.stat{padding:var(--s2) var(--s3)}
+.stat b{display:block;font-size:2rem;font-family:var(--mono);color:var(--em)}
+.stat:nth-child(2) b{color:var(--vio)}.stat:nth-child(3) b{color:var(--sky)}
+.stat span{color:var(--mute);font-size:.9rem}
+
+/* Processes */
+.procs{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s2)}
+.proc-head{display:flex;justify-content:space-between;align-items:flex-start}
+.proc-head h3{font-size:1.2rem}
+.badge{font-size:.78rem;padding:3px 10px;border-radius:99px;border:1px solid var(--line);color:var(--mute)}
+.badge.wait{color:var(--warn);border-color:rgba(251,191,36,.4)}
+.badge.ok{color:var(--em);border-color:rgba(52,211,153,.4)}
+.clock{font-family:var(--mono);font-size:3rem;font-weight:700;margin:var(--s1) 0;background:linear-gradient(135deg,var(--em),var(--vio));-webkit-background-clip:text;background-clip:text;color:transparent;transition:transform .25s}
+.clock.bump{transform:scale(1.12)}
+.meta{color:var(--mute);font-size:.88rem;margin-bottom:var(--s2)}
+.actions{display:flex;gap:var(--s1);flex-wrap:wrap;margin-bottom:var(--s2)}
+.tl{list-style:none;margin:0;padding:0 0 0 18px;border-left:2px solid var(--line);min-height:70px;max-height:230px;overflow:auto}
+.tl li{position:relative;padding:4px 0 10px 12px;font-size:.85rem}
+.tl li::before{content:"";position:absolute;left:-25px;top:9px;width:12px;height:12px;border-radius:50%;background:var(--c);border:2px solid var(--bg2)}
+.tl li.send::before{border-radius:3px;transform:rotate(45deg)}
+.tl li.receive::before{border-radius:2px}
+.tl .ts{font-family:var(--mono);color:var(--c);font-weight:700}
+.empty{color:var(--mute);font-size:.88rem;padding:8px 0}
+.local{--c:var(--vio)}.send{--c:var(--em)}.receive{--c:var(--sky)}
+
+/* Communication */
+.comm{display:grid;grid-template-columns:1.1fr 1fr;gap:var(--s2)}
+.form{display:flex;gap:var(--s1);flex-wrap:wrap;align-items:flex-end;margin-bottom:var(--s2)}
+label{display:flex;flex-direction:column;gap:4px;font-size:.84rem;color:var(--mute)}
+select,input[type=search]{font:inherit;font-size:.92rem;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:9px 12px;min-width:110px}
+select:hover,input:hover{border-color:var(--mute)}
+.lane{position:relative;height:96px;display:grid;grid-template-columns:repeat(3,1fr);align-items:center;margin-bottom:var(--s2);border-radius:12px;background:var(--bg);border:1px solid var(--line)}
+.lane::before{content:"";position:absolute;left:16.6%;right:16.6%;top:50%;border-top:2px dashed var(--line)}
+.node{justify-self:center;z-index:1;width:46px;height:46px;border-radius:13px;display:grid;place-items:center;font-weight:700;background:var(--card);border:2px solid var(--line);transition:.25s}
+.node.hit{border-color:var(--em);box-shadow:0 0 18px rgba(52,211,153,.5)}
+.pkt{position:absolute;top:50%;z-index:2;transform:translate(-50%,-50%);padding:3px 9px;border-radius:99px;font:700 .75rem var(--mono);background:var(--em);color:#06231a;display:none}
+.msgs{list-style:none;margin:0;padding:0;display:grid;gap:var(--s1);max-height:260px;overflow:auto}
+.msgs li{display:flex;align-items:center;gap:12px;justify-content:space-between;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
+.msgs .mono{font-family:var(--mono)}
+.stepbox{margin-top:var(--s2);padding:var(--s2);border:1px dashed var(--vio);border-radius:12px;display:none}
+.stepbox.on{display:block}
+.bar{height:6px;border-radius:9px;background:var(--line);margin:10px 0;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--em),var(--vio));transition:width .3s}
+
+/* Log */
+.tools{display:flex;gap:var(--s1);flex-wrap:wrap;align-items:flex-end;margin-bottom:var(--s2)}
+.tools .grow{flex:1;min-width:200px}.tools .grow input{width:100%}
+.tablewrap{overflow:auto;border:1px solid var(--line);border-radius:12px}
+table{width:100%;border-collapse:collapse;font-size:.9rem;min-width:640px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line)}
+th{background:var(--bg);color:var(--mute);font-weight:600;position:sticky;top:0}
+tbody tr:hover{background:rgba(255,255,255,.03)}
+tbody tr:last-child td{border-bottom:0}
+.tag{display:inline-block;padding:2px 10px;border-radius:99px;font-size:.78rem;font-weight:600;color:var(--c);background:rgba(255,255,255,.05);border:1px solid var(--c)}
+td.mono{font-family:var(--mono)}
+
+/* Ordering */
+.legend{display:flex;gap:var(--s2);flex-wrap:wrap;margin-bottom:var(--s2);font-size:.88rem;color:var(--mute)}
+.legend span{display:flex;align-items:center;gap:6px}
+.diagram{overflow:auto;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:var(--s2) 0}
+.chip{font:600 .82rem var(--mono);padding:5px 10px;border-radius:9px;border:1px solid var(--c);color:var(--c);background:var(--bg)}
+.explain{color:var(--mute);font-size:.94rem}
+
+/* Education */
+.edu{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--s1) var(--s2)}
+details{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:4px 18px;transition:.2s}
+details[open]{border-color:var(--vio)}
+summary{cursor:pointer;font-weight:600;padding:12px 0;list-style:none;display:flex;justify-content:space-between;gap:8px}
+summary::after{content:"+";color:var(--vio);font-size:1.3rem;line-height:1}
+details[open] summary::after{content:"–"}
+details p{color:var(--mute);margin:0 0 14px}
+code{font-family:var(--mono);background:var(--bg);padding:2px 6px;border-radius:6px;color:var(--em);font-size:.88em}
+footer{border-top:1px solid var(--line);margin-top:var(--s3);padding:var(--s3) 0;color:var(--mute);font-size:.88rem;text-align:center}
+
+/* Toasts */
+#toasts{position:fixed;right:16px;bottom:16px;z-index:100;display:grid;gap:8px;max-width:calc(100vw - 32px)}
+.toast{padding:12px 16px;border-radius:12px;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--em);box-shadow:0 10px 30px rgba(0,0,0,.4);animation:in .25s}
+.toast.error{border-left-color:var(--err)}
+@keyframes in{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
+
+@media(max-width:900px){.procs,.comm,.edu{grid-template-columns:1fr}.links{order:3;width:100%}}
+@media(max-width:560px){.stats{grid-template-columns:1fr}.status{display:none}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+
+<nav aria-label="Main">
+  <div class="wrap nav">
+    <a class="brand" href="#simulator">
+      <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+      <span><b>ChronoSync</b><small>Distributed Systems Lab</small></span>
+    </a>
+    <div class="links">
+      <a href="#simulator">Simulator</a><a href="#log">Event Log</a><a href="#about">About</a>
+    </div>
+    <div class="status" id="status" role="status"><span class="dot"></span><span id="statusText">Simulation Ready</span></div>
+    <button class="btn danger sm" id="resetBtn" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>Reset
+    </button>
+  </div>
+</nav>
+
+<main class="wrap">
+  <header class="hero" id="simulator">
+    <h1>Lamport Logical Clock Simulator</h1>
+    <p>Computers in a network do not share one clock, so they cannot agree on exact time. A logical clock is a simple counter that orders events by cause and effect instead. Create events on three processes, pass messages, and watch the counters stay consistent.</p>
+    <div class="stats">
+      <div class="card stat"><b>3</b><span>Active Processes</span></div>
+      <div class="card stat"><b id="statEvents">0</b><span>Total Events</span></div>
+      <div class="card stat"><b id="statTransit">0</b><span>Messages in Transit</span></div>
+    </div>
+  </header>
+
+  <section aria-labelledby="h-proc">
+    <h2 id="h-proc">Distributed processes</h2>
+    <p class="sub">Each process keeps its own clock, starting at 0. Local and send events add 1. A receive event sets the clock to max(local, received) + 1.</p>
+    <div class="procs" id="procs"></div>
+  </section>
+
+  <section aria-labelledby="h-comm">
+    <h2 id="h-comm">Message communication</h2>
+    <p class="sub">Pick a sender and receiver, then send. The message stays in transit, with its timestamp, until you receive it.</p>
+    <div class="comm">
+      <div class="card">
+        <div class="form">
+          <label>Sender<select id="from"></select></label>
+          <label>Receiver<select id="to"></select></label>
+          <button class="btn em" id="sendBtn" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg>Send message</button>
+        </div>
+        <div class="lane" id="lane" aria-hidden="true">
+          <div class="node" data-n="0">P1</div><div class="node" data-n="1">P2</div><div class="node" data-n="2">P3</div>
+          <div class="pkt" id="pkt">t=0</div>
+        </div>
+        <div class="form" style="margin:0">
+          <button class="btn vio" id="autoBtn" type="button">Auto simulation</button>
+          <button class="btn" id="stepModeBtn" type="button">Step-by-step mode</button>
+        </div>
+        <div class="stepbox" id="stepbox">
+          <b id="stepTitle">Step-by-step mode</b>
+          <div class="bar"><i id="stepBar"></i></div>
+          <div class="explain" id="stepNext"></div>
+          <button class="btn vio sm" id="nextBtn" type="button" style="margin-top:10px">Run next step</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:12px">Messages in transit</h3>
+        <ul class="msgs" id="msgs" aria-live="polite"></ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="log" aria-labelledby="h-log">
+    <h2 id="h-log">Event log</h2>
+    <p class="sub">Every event with the timestamp it received. The latest event is at the top.</p>
+    <div class="card">
+      <div class="tools">
+        <label class="grow">Search<input type="search" id="search" placeholder="Search type, process or description"></label>
+        <label>Process<select id="filter"><option value="all">All processes</option><option value="0">P1</option><option value="1">P2</option><option value="2">P3</option></select></label>
+        <button class="btn danger" id="clearBtn" type="button">Clear log</button>
+      </div>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Event ID</th><th>Process</th><th>Event type</th><th>Logical timestamp</th><th>Description</th></tr></thead>
+        <tbody id="logBody"></tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-order">
+    <h2 id="h-order">Event ordering</h2>
+    <p class="sub">Time flows left to right. Arrows connect each send to its receive.</p>
+    <div class="card">
+      <div class="legend">
+        <span><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="6" fill="#a78bfa"/></svg>Local event</span>
+        <span><svg viewBox="0 0 20 20"><path d="M10 3l7 13H3z" fill="#34d399"/></svg>Send event</span>
+        <span><svg viewBox="0 0 20 20"><rect x="4" y="4" width="12" height="12" rx="2" fill="#38bdf8"/></svg>Receive event</span>
+      </div>
+      <div class="diagram" id="diagram"></div>
+      <h3 style="margin-top:var(--s3);font-size:1.05rem">Total order by logical timestamp</h3>
+      <div class="chips" id="chips"></div>
+      <p class="explain" id="explain"></p>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-edu">
+    <h2 id="h-edu">Learn the concepts</h2>
+    <p class="sub">Short explanations for the ideas behind the simulator.</p>
+    <div class="edu">
+      <details open><summary>What is a distributed system?</summary><p>A distributed system is a group of independent computers that work together and look like one system to the user. The computers talk only by sending messages over a network. Examples are online banking, cloud storage and multiplayer games.</p></details>
+      <details><summary>What is a logical clock?</summary><p>A logical clock is a counter, not a real clock. It does not tell the time of day. It only helps us decide which event came first when one event could have caused another.</p></details>
+      <details><summary>Why are physical clocks hard to synchronize?</summary><p>Every computer clock runs a little fast or slow (clock drift). Network delay is not constant, so one machine cannot know exactly what time another machine shows. Even small differences can put events in the wrong order.</p></details>
+      <details><summary>The Lamport clock algorithm</summary><p>Each process i keeps a counter <code>C[i]</code>, starting at 0. Local event: <code>C[i] = C[i] + 1</code>. Send: increase <code>C[i]</code> by 1 and attach it to the message. Receive: <code>C[j] = max(C[j], ts) + 1</code>.</p></details>
+      <details><summary>Happens-before relationship</summary><p>We write <code>a → b</code> when a happened before b. This is true if (1) a and b are on the same process and a is earlier, or (2) a is the send of a message and b is its receive, or (3) a → c and c → b. If neither a → b nor b → a, the events are concurrent.</p></details>
+      <details><summary>Causal ordering</summary><p>Causal ordering means a cause is always ordered before its effect. Lamport clocks guarantee this: if a → b, then C(a) &lt; C(b). A reply can never get a smaller timestamp than the message it answers.</p></details>
+      <details style="grid-column:1/-1"><summary>Limitations of Lamport clocks</summary><p>The reverse is not true: C(a) &lt; C(b) does not prove a → b, because the events may be concurrent. Lamport clocks cannot detect concurrency. Two different events can also share the same timestamp, so ties are broken by process id. Vector clocks solve the concurrency problem.</p></details>
+    </div>
+  </section>
+
+  <section id="about" aria-labelledby="h-about">
+    <h2 id="h-about">About</h2>
+    <p class="sub">ChronoSync is a mini project for CS3551 – Distributed Computing. It simulates three processes using the Lamport logical clock algorithm. It runs fully in the browser with plain HTML, CSS and JavaScript.</p>
+  </section>
+</main>
+<footer>ChronoSync · Lamport Logical Clock Simulator · CS3551 Distributed Computing</footer>
+<div id="toasts" aria-live="polite"></div>
+
+<script>
+"use strict";
+/* ===== State ===== */
+const NAMES = ["P1", "P2", "P3"];
+const TYPE_LABEL = { local: "Local", send: "Send", receive: "Receive" };
+let clocks, counts, events, pending, nextEventId, nextMsgId, logFrom;
+let autoTimer = null, stepMode = false, stepIdx = 0, lastBump = -1;
+
+/* Sample sequence from the assignment (f = from, to = receiver) */
+const SCRIPT = [
+  { t: "local", p: 0, text: "P1 performs a local event" },
+  { t: "send", f: 0, to: 1, text: "P1 sends a message to P2" },
+  { t: "local", p: 1, text: "P2 performs a local event" },
+  { t: "recv", f: 0, to: 1, text: "P2 receives the message from P1" },
+  { t: "send", f: 1, to: 2, text: "P2 sends a message to P3" },
+  { t: "recv", f: 1, to: 2, text: "P3 receives the message from P2" },
+  { t: "local", p: 2, text: "P3 performs a local event" }
+];
+
+const $ = (id) => document.getElementById(id);
+
+function initState() {
+  clocks = [0, 0, 0]; counts = [0, 0, 0];
+  events = []; pending = [];
+  nextEventId = 1; nextMsgId = 1; logFrom = 0;
+}
+
+/* ===== Notifications ===== */
+function toast(msg, isError) {
+  const t = document.createElement("div");
+  t.className = "toast" + (isError ? " error" : "");
+  t.textContent = msg;
+  $("toasts").appendChild(t);
+  setTimeout(() => t.remove(), 3200);
+}
+
+/* ===== Lamport algorithm ===== */
+function record(p, type, desc, extra) {
+  const ev = Object.assign({ id: nextEventId++, p: p, type: type, ts: clocks[p], desc: desc }, extra || {});
+  events.push(ev);
+  counts[p]++;
+  lastBump = p;
+  return ev;
+}
+
+function localEvent(p) {
+  clocks[p] = clocks[p] + 1;                       // C[i] = C[i] + 1
+  record(p, "local", "Local computation. Clock " + (clocks[p] - 1) + " + 1 = " + clocks[p]);
+  toast(NAMES[p] + " local event. Clock is now " + clocks[p] + ".");
+  render();
+}
+
+function sendMessage(from, to) {
+  if (from === to) { toast("A process cannot send a message to itself. Choose a different receiver.", true); return false; }
+  clocks[from] = clocks[from] + 1;                 // C[i] = C[i] + 1
+  const msg = { id: nextMsgId++, from: from, to: to, ts: clocks[from] };
+  const ev = record(from, "send", "Sent message M" + msg.id + " to " + NAMES[to] + " with timestamp " + msg.ts, { msgId: msg.id });
+  msg.sendEvent = ev.id;
+  pending.push(msg);
+  toast(NAMES[from] + " sent M" + msg.id + " to " + NAMES[to] + " (timestamp " + msg.ts + ").");
+  animatePacket(from, to, msg.ts);
+  render();
+  return true;
+}
+
+function receiveMessage(msgId) {
+  const i = pending.findIndex((m) => m.id === msgId);
+  if (i < 0) { toast("That message is no longer in transit.", true); return false; }
+  const msg = pending.splice(i, 1)[0];
+  const before = clocks[msg.to];
+  clocks[msg.to] = Math.max(before, msg.ts) + 1;   // C[j] = max(C[j], ts) + 1
+  record(msg.to, "receive",
+    "Received M" + msg.id + " from " + NAMES[msg.from] + ". max(" + before + ", " + msg.ts + ") + 1 = " + clocks[msg.to],
+    { msgId: msg.id, sendEvent: msg.sendEvent });
+  toast(NAMES[msg.to] + " received M" + msg.id + ". Clock is now " + clocks[msg.to] + ".");
+  flashNode(msg.to);
+  render();
+  return true;
+}
+
+/* ===== Visual helpers ===== */
+function animatePacket(from, to, ts) {
+  const pkt = $("pkt"), centers = [16.67, 50, 83.33];
+  pkt.textContent = "t=" + ts;
+  pkt.style.display = "block";
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || !pkt.animate) {
+    setTimeout(() => (pkt.style.display = "none"), 600); return;
+  }
+  const a = pkt.animate([{ left: centers[from] + "%" }, { left: centers[to] + "%" }], { duration: 900, easing: "ease-in-out" });
+  a.onfinish = () => { pkt.style.display = "none"; flashNode(to); };
+}
+function flashNode(n) {
+  const el = document.querySelector('.node[data-n="' + n + '"]');
+  el.classList.add("hit");
+  setTimeout(() => el.classList.remove("hit"), 700);
+}
+
+/* ===== Rendering ===== */
+function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+function renderProcesses() {
+  $("procs").innerHTML = NAMES.map((name, p) => {
+    const waiting = pending.filter((m) => m.to === p).length;
+    const status = waiting ? '<span class="badge wait">' + waiting + " message waiting</span>"
+      : counts[p] ? '<span class="badge ok">Running</span>' : '<span class="badge">Idle</span>';
+    const mine = events.filter((e) => e.p === p).slice(-6).reverse();
+    const tl = mine.length ? mine.map((e) =>
+      '<li class="' + e.type + '"><span class="ts">' + e.ts + "</span> " + TYPE_LABEL[e.type] + ", " + esc(e.desc.split(".")[0]) + "</li>").join("")
+      : '<li class="empty" style="padding-left:12px">No events yet. Start with a local event.</li>';
+    return '<article class="card"><div class="proc-head"><h3>Process ' + name + "</h3>" + status + "</div>" +
+      '<div class="clock" id="clock' + p + '">' + clocks[p] + '</div>' +
+      '<div class="meta">Logical clock C' + (p + 1) + " · " + counts[p] + " events</div>" +
+      '<div class="actions"><button class="btn vio sm" data-local="' + p + '" type="button">Local event</button>' +
+      '<button class="btn em sm" data-send="' + p + '" type="button">Send message</button></div>' +
+      '<ul class="tl" aria-label="' + name + ' timeline">' + tl + "</ul></article>";
+  }).join("");
+  if (lastBump >= 0) {
+    const c = $("clock" + lastBump);
+    if (c) { c.classList.add("bump"); setTimeout(() => c.classList.remove("bump"), 250); }
+    lastBump = -1;
+  }
+}
+
+function renderPending() {
+  $("msgs").innerHTML = pending.length ? pending.map((m) =>
+    '<li><span><b>M' + m.id + "</b> " + NAMES[m.from] + " → " + NAMES[m.to] + ' <span class="mono" style="color:var(--em)">timestamp ' + m.ts + "</span></span>" +
+    '<button class="btn sm" data-recv="' + m.id + '" type="button">Receive</button></li>').join("")
+    : '<li class="empty" style="border:0">No messages in transit.</li>';
+}
+
+function renderLog() {
+  const q = $("search").value.trim().toLowerCase(), f = $("filter").value;
+  const rows = events.filter((e) => e.id > logFrom && (f === "all" || e.p === +f) &&
+    (!q || (NAMES[e.p] + " " + TYPE_LABEL[e.type] + " " + e.desc + " E" + e.id).toLowerCase().includes(q))).reverse();
+  $("logBody").innerHTML = rows.length ? rows.map((e) =>
+    '<tr><td class="mono">E' + e.id + "</td><td>" + NAMES[e.p] + '</td><td><span class="tag ' + e.type + '">' + TYPE_LABEL[e.type] +
+    '</span></td><td class="mono">' + e.ts + "</td><td>" + esc(e.desc) + "</td></tr>").join("")
+    : '<tr><td colspan="5" class="empty">No events to show. Run an event or change the filters.</td></tr>';
+}
+
+function renderDiagram() {
+  const colors = { local: "#a78bfa", send: "#34d399", receive: "#38bdf8" };
+  const X0 = 70, DX = 62, Y0 = 50, DY = 70;
+  const w = Math.max(640, X0 + events.length * DX + 40), h = Y0 + DY * 2 + 50;
+  const pos = {};
+  events.forEach((e, i) => (pos[e.id] = { x: X0 + i * DX, y: Y0 + e.p * DY }));
+  let s = '<svg viewBox="0 0 ' + w + " " + h + '" width="' + w + '" height="' + h + '" style="width:' + w + 'px;height:' + h + 'px" role="img" aria-label="Space-time diagram of events">' +
+    '<defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#34d399"/></marker></defs>';
+  NAMES.forEach((n, p) => {
+    s += '<line x1="50" x2="' + (w - 10) + '" y1="' + (Y0 + p * DY) + '" y2="' + (Y0 + p * DY) + '" stroke="#2e333c" stroke-width="2"/>' +
+      '<text x="12" y="' + (Y0 + p * DY + 5) + '" fill="#e8eaee" font-weight="700" font-size="14">' + n + "</text>";
+  });
+  events.forEach((e) => {
+    if (e.type === "receive" && pos[e.sendEvent]) {
+      const a = pos[e.sendEvent], b = pos[e.id];
+      s += '<line x1="' + a.x + '" y1="' + a.y + '" x2="' + b.x + '" y2="' + b.y + '" stroke="#34d399" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#ar)" opacity=".8"/>';
+    }
+  });
+  events.forEach((e) => {
+    const p = pos[e.id], c = colors[e.type];
+    if (e.type === "local") s += '<circle cx="' + p.x + '" cy="' + p.y + '" r="9" fill="' + c + '"/>';
+    else if (e.type === "send") s += '<path d="M' + p.x + " " + (p.y - 11) + "l11 20h-22z" + '" fill="' + c + '"/>';
+    else s += '<rect x="' + (p.x - 9) + '" y="' + (p.y - 9) + '" width="18" height="18" rx="3" fill="' + c + '"/>';
+    s += '<text x="' + p.x + '" y="' + (p.y + 28) + '" fill="' + c + '" font-size="13" font-weight="700" text-anchor="middle" font-family="monospace">' + e.ts + "</text>";
+  });
+  $("diagram").innerHTML = s + "</svg>";
+
+  const sorted = events.slice().sort((a, b) => a.ts - b.ts || a.p - b.p);
+  $("chips").innerHTML = sorted.length ? sorted.map((e) =>
+    '<span class="chip ' + e.type + '">' + NAMES[e.p] + " " + TYPE_LABEL[e.type] + " t=" + e.ts + "</span>").join("")
+    : '<span class="empty">Events will appear here in timestamp order.</span>';
+  $("explain").textContent = events.length
+    ? "Events are sorted by logical timestamp. Equal timestamps happen on different processes with no causal link (concurrent), so they are ordered by process id. Every send always has a smaller timestamp than its matching receive."
+    : "Run some events to see how Lamport timestamps order them.";
+}
+
+function render() {
+  renderProcesses(); renderPending(); renderLog(); renderDiagram();
+  $("statEvents").textContent = events.length;
+  $("statTransit").textContent = pending.length;
+  renderStep();
+}
+
+function setStatus(text, running) {
+  $("statusText").textContent = text;
+  $("status").classList.toggle("run", !!running);
+}
+
+/* ===== Sample simulation (auto + step) ===== */
+function runAction(a) {
+  if (a.t === "local") { localEvent(a.p); return true; }
+  if (a.t === "send") return sendMessage(a.f, a.to);
+  const m = pending.find((x) => x.from === a.f && x.to === a.to);
+  if (!m) { toast("No matching message in transit for this step.", true); return false; }
+  return receiveMessage(m.id);
+}
+
+function stopAuto() { if (autoTimer) { clearInterval(autoTimer); autoTimer = null; } }
+
+function resetAll(silent) {
+  stopAuto(); stepMode = false; stepIdx = 0;
+  initState();
+  $("stepbox").classList.remove("on");
+  $("autoBtn").disabled = false;
+  setStatus("Simulation Ready", false);
+  render();
+  if (!silent) toast("Simulation reset. All clocks are 0.");
+}
+
+function startAuto() {
+  resetAll(true);
+  $("autoBtn").disabled = true;
+  setStatus("Auto simulation running", true);
+  let i = 0;
+  autoTimer = setInterval(() => {
+    runAction(SCRIPT[i++]);
+    if (i >= SCRIPT.length) {
+      stopAuto(); $("autoBtn").disabled = false;
+      setStatus("Simulation Complete", false);
+      toast("Sample simulation finished. Final clocks: " + clocks.join(", ") + ".");
+    }
+  }, 1300);
+}
+
+function toggleStepMode() {
+  if (stepMode) { resetAll(false); return; }
+  resetAll(true);
+  stepMode = true; stepIdx = 0;
+  $("stepbox").classList.add("on");
+  setStatus("Step-by-step mode", true);
+  render();
+  toast("Step-by-step mode on. Press Run next step.");
+}
+
+function renderStep() {
+  if (!stepMode) return;
+  $("stepBar").style.width = (stepIdx / SCRIPT.length * 100) + "%";
+  const done = stepIdx >= SCRIPT.length;
+  $("stepNext").textContent = done ? "All 7 steps are done. Review the log and the timeline below."
+    : "Step " + (stepIdx + 1) + " of " + SCRIPT.length + ": " + SCRIPT[stepIdx].text;
+  $("nextBtn").disabled = done;
+}
+
+function nextStep() {
+  if (!stepMode || stepIdx >= SCRIPT.length) return;
+  if (runAction(SCRIPT[stepIdx])) stepIdx++;
+  renderStep();
+  if (stepIdx >= SCRIPT.length) setStatus("Simulation Complete", false);
+}
+
+/* ===== Event wiring ===== */
+function init() {
+  ["from", "to"].forEach((id, k) => {
+    $(id).innerHTML = NAMES.map((n, i) => '<option value="' + i + '">' + n + "</option>").join("");
+    $(id).value = k === 0 ? 0 : 1;
+  });
+  initState();
+  render();
+
+  $("procs").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.local) localEvent(+b.dataset.local);
+    if (b.dataset.send) { $("from").value = b.dataset.send; sendMessage(+b.dataset.send, +$("to").value); }
+  });
+  $("msgs").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-recv]"); if (b) receiveMessage(+b.dataset.recv);
+  });
+  $("sendBtn").addEventListener("click", () => sendMessage(+$("from").value, +$("to").value));
+  $("resetBtn").addEventListener("click", () => resetAll(false));
+  $("autoBtn").addEventListener("click", startAuto);
+  $("stepModeBtn").addEventListener("click", toggleStepMode);
+  $("nextBtn").addEventListener("click", nextStep);
+  $("search").addEventListener("input", renderLog);
+  $("filter").addEventListener("change", renderLog);
+  $("clearBtn").addEventListener("click", () => {
+    logFrom = nextEventId - 1; renderLog(); toast("Log cleared. Clocks and the timeline are unchanged.");
+  });
+}
+init();
+</script>
+</body>
+</html>
