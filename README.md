@@ -64,3 +64,5 @@ This project is developed for educational and academic purposes.
 ## Message Communication
 
 ![Message Communication](lamport%203.png)
+
+My site is live at https://lalithkhalap.github.io/ChronoSync-Lamport-Simulator-/
