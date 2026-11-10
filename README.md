@@ -53,4 +53,15 @@ These rules help maintain the correct logical ordering of events in a distribute
 ## 📄 License
 
 This project is developed for educational and academic purposes.
+## Dashboard Preview
+
+![Lamport Dashboard](lamport 1.png)
+
+## Process Clock View
+
+![Process Clock View](lamport 2.png)
+
+## Message Communication
+
+![Message Communication](lamport 3.png)
 
